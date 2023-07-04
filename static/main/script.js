@@ -41,7 +41,8 @@ $('form#login-form').on('submit', function (e) {
             success: function (data) {
                 document.querySelector('form#register-form').querySelector('input#email').value = ''
                 document.querySelector('form#register-form').querySelector('input#password').value = ''
-                localStorage.setItem('access_token', JSON.stringify(data))
+                localStorage.setItem('access_token', data.access_token)
+                localStorage.setItem('token_type', data.token_type)
                 console.log(localStorage)
             },
             error: function (data) {

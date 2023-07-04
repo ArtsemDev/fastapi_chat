@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field, validator
 
-from ..settings import pwd_context
+from src.settings import pwd_context
 
 
 class UserForm(BaseModel):

@@ -12,3 +12,13 @@ async def register(request: Request):
             'request': request
         }
     )
+
+
+@router.get('/chat')
+async def chat(request: Request):
+    return templating.TemplateResponse(
+        name='main/chat.html',
+        context={
+            'request': request
+        }
+    )

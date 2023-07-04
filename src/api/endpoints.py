@@ -1,11 +1,19 @@
-from fastapi import HTTPException, status, Depends
+from datetime import datetime
+
+from asyncio import Event
+from fastapi import HTTPException, status, Depends, Path, WebSocket
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from .router import router
-from ..types import UserForm, Token
-from ..database import User
+from src.types.user import UserForm
+from src.types import Token
+from ..database import User, ChatMessage
 from .dependecies import create_token, SETTINGS, auth
+
+
+new_message = Event()
 
 
 @router.post('/register')
@@ -39,6 +47,80 @@ async def login(form: UserForm):
     )
 
 
-@router.get('/test')
-async def test(user: User = Depends(auth)):
-    return UserForm.from_orm(user)
+class Message(BaseModel):
+    message: str = Field(max_length=1024)
+
+
+class MessageDetail(Message):
+    chat_id: int
+    author_id: int
+    date_created: datetime
+    id: int
+
+    class Config:
+        orm_mode = True
+
+
+@router.get('/chat/{chat_id}')
+async def chat(auth: User = Depends(auth), chat_id: int = Path()):
+    async with ChatMessage.session() as session:
+        messages = await session.scalars(
+            select(ChatMessage)
+            .filter_by(chat_id=chat_id)
+            .order_by(ChatMessage.date_created.asc())
+        )
+        return [MessageDetail.from_orm(message) for message in messages]
+
+
+@router.post('/chat/{chat_id}')
+async def chat(message: Message, auth: User = Depends(auth), chat_id: int = Path()):
+    async with ChatMessage.session() as session:
+        chat_message = ChatMessage(
+            chat_id=chat_id,
+            author_id=auth.id,
+            message=message.message
+        )
+        session.add(chat_message)
+        try:
+            await session.commit()
+        except IntegrityError:
+            raise HTTPException(400)
+        else:
+            new_message.set()
+            await session.refresh(chat_message)
+            return MessageDetail.from_orm(chat_message)
+
+
+@router.websocket('/ws/chat/{chat_id}/{access_token}')
+async def ws_chat(ws: WebSocket, chat_id: int = Path(), access_token: str = Path()):
+    from asyncio import sleep
+    await ws.accept()
+
+    async with ChatMessage.session() as session:
+        messages = await session.scalars(
+            select(ChatMessage)
+            .filter_by(chat_id=chat_id)
+            .order_by(ChatMessage.date_created.asc())
+        )
+        messages = messages.all()
+        last_message_id = messages[-1].id
+        await ws.send_json([MessageDetail.from_orm(message).json() for message in messages])
+
+    while ...:
+        while not new_message.is_set():
+            await sleep(1)
+        else:
+            new_message.clear()
+
+        async with ChatMessage.session() as session:
+            messages = await session.scalars(
+                select(ChatMessage)
+                .filter_by(chat_id=chat_id)
+                .filter(ChatMessage.id > last_message_id)
+                .order_by(ChatMessage.date_created.asc())
+            )
+            messages = messages.all()
+            if messages:
+                last_message_id = messages[-1].id
+                await ws.send_json([MessageDetail.from_orm(message).json() for message in messages])
+        await sleep(1)

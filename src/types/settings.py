@@ -1,4 +1,4 @@
-from pydantic import BaseSettings, SecretStr, PositiveInt, Field
+from pydantic import BaseSettings, SecretStr, PositiveInt, Field, PostgresDsn
 
 
 class Settings(BaseSettings):
@@ -6,6 +6,4 @@ class Settings(BaseSettings):
     EXPIRE_JWT: PositiveInt
     ALGORITHM: str = Field(default='HS256')
     TOKEN_TYPE: str = Field(default='Bearer')
-
-    class Config:
-        env_file = '.env'
+    DATABASE_URL: PostgresDsn

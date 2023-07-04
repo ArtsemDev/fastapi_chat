@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  app:
+    build: .
+    command: sh -c "alembic upgrade head && uvicorn app:app --reload --host=0.0.0.0 --port=8000"
+    container_name: chat-app
+    ports:
+      - "8000:8000"
+    environment:
+      - SECRET_KEY=${SECRET_KEY}
+      - EXPIRE_JWT=${EXPIRE_JWT}
+      - ALGORITHM=${ALGORITHM}
+      - TOKEN_TYPE=${TOKEN_TYPE}
+      - DATABASE_URL=postgresql://admin:admin@admin:5432/web
+    volumes:
+      - .:/chat
+    depends_on:
+      - db
+
+  db:
+    image: postgres:15-alpine3.18
+    hostname: admin
+    container_name: chat-db
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=admin
+      - POSTGRES_DB=web
